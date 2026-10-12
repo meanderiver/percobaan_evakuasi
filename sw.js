@@ -29,18 +29,21 @@ var filesToCache = [
   './data/titikpos_2.js'
 ];
 
-self.addEventListener('install', function(e) {
-  e.waitUntil(
-    caches.open(cacheName).then(function(cache) {
-      return cache.addAll(filesToCache);
-    })
-  );
-});
-
 self.addEventListener('fetch', function(e) {
   e.respondWith(
     caches.match(e.request).then(function(response) {
-      return response || fetch(e.request);
+      // Jika file ada di cache, gunakan itu
+      if (response) {
+        return response;
+      }
+      // Jika tidak ada, coba ambil dari internet
+      return fetch(e.request).catch(function() {
+        // JARING PENGAMAN GITHUB PAGES: 
+        // Jika offline dan browser mencari folder utama, paksa buka index.html
+        if (e.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+      });
     })
   );
 });

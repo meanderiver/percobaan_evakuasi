@@ -1,18 +1,14 @@
-var cacheName = 'evakuasi-v1';
+var cacheName = 'evakuasi-v3';
 var filesToCache = [
-  '/',
+  './',
   './index.html',
   './manifest.json',
-  
-  // --- DAFTAR CSS ---
   './css/leaflet.css',
   './css/L.Control.Layers.Tree.css',
   './css/L.Control.Locate.min.css',
   './css/qgis2web.css',
   './css/fontawesome-all.min.css',
   './css/leaflet.photon.css',
-  
-  // --- DAFTAR JS & DATA (Dari gambar terbarumu) ---
   './js/qgis2web_expressions.js',
   './js/leaflet.js',
   './js/L.Control.Layers.Tree.min.js',
@@ -29,19 +25,45 @@ var filesToCache = [
   './data/titikpos_2.js'
 ];
 
+self.addEventListener('install', function(e) {
+  self.skipWaiting();
+  e.waitUntil(
+    caches.open(cacheName).then(function(cache) {
+      // Coba simpan satu-satu. Jika ada yang typo/hilang, biarkan dan lanjut ke file berikutnya
+      return Promise.all(
+        filesToCache.map(function(url) {
+          return cache.add(url).catch(function(err) {
+            console.log('File dilewati (tidak ada/typo):', url);
+          });
+        })
+      );
+    })
+  );
+});
+
+self.addEventListener('activate', function(e) {
+  e.waitUntil(clients.claim());
+});
+
 self.addEventListener('fetch', function(e) {
   e.respondWith(
     caches.match(e.request).then(function(response) {
-      // Jika file ada di cache, gunakan itu
       if (response) {
-        return response;
+        return response; // Gunakan file dari cache jika ada
       }
-      // Jika tidak ada, coba ambil dari internet
-      return fetch(e.request).catch(function() {
-        // JARING PENGAMAN GITHUB PAGES: 
-        // Jika offline dan browser mencari folder utama, paksa buka index.html
+      return fetch(e.request).then(function(networkResponse) {
+        // Auto-save: Simpan file apa pun yang berhasil dimuat secara online ke dalam cache
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          var responseToCache = networkResponse.clone();
+          caches.open(cacheName).then(function(cache) {
+            cache.put(e.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      }).catch(function() {
+        // Pengaman GitHub Pages saat offline
         if (e.request.mode === 'navigate') {
-          return caches.match('./index.html');
+          return caches.match('./index.html') || caches.match('./');
         }
       });
     })
